@@ -1,0 +1,31 @@
+.copy-button {
+    background-color: #0091ff;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 5px;
+    font-size: 1em;
+    cursor: pointer;
+}
+.copy-button:hover {
+    background-color: #0091ff;
+}
+#home_banner{
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 10px;
+    height: 36px;
+    z-index: 10;
+    background: #0091ff;
+}
+#home_banner > img{
+    margin: 0;
+}
+
+#yt-footer img {
+    box-shadow: none;
+}
+#yt-footer > a {
+    text-decoration: none;
+}
