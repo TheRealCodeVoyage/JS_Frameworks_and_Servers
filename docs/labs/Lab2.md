@@ -128,7 +128,7 @@ app.use('*', async (c, next) => {
   const start = Date.now()
   await next()
   const ms = Date.now() - start
-  // Add a response header so we can see timings in Thunder Client
+  // Add a response header so we can see timings in curl or other clients
   c.header('X-Response-Time', `${ms}ms`)
 })
 
@@ -150,42 +150,61 @@ bun run dev
 
 ---
 
-## 4) Test Endpoints (Thunder Client or curl)
-Create a Thunder Client collection (or equivalent) with these requests:
+## 4) Test Endpoints (curl)
+Use these curl commands to test your API endpoints:
 
-1) **GET** `http://localhost:3000/api/expenses`  
-   **Expect:** `{ "expenses": [ ... ] }` and header `X-Response-Time` present.
+1) **GET** list all expenses
 
-2) **GET** `http://localhost:3000/api/expenses/1`  
-   **Expect:** `{ "expense": { "id": 1, ... } }`
-
-3) **GET** `http://localhost:3000/api/expenses/9999`  
-   **Expect:** 404 and `{ "error": "Not found" }`
-
-4) **POST** `http://localhost:3000/api/expenses`  
-   **Body (JSON):**
-   ```json
-   { "title": "Books", "amount": 50 }
-   ```
-   **Expect:** 201 and `{ "expense": { "id": <number>, "title": "Books", "amount": 50 } }`
-
-5) **POST (invalid)** `http://localhost:3000/api/expenses`  
-   **Body (JSON):** `{ "title": "Hi", "amount": -1 }`  
-   **Expect:** 400 with Zod validation details.
-
-6) **DELETE** `http://localhost:3000/api/expenses/2`  
-   **Expect:** `{ "deleted": { "id": 2, ... } }`  
-   **Then GET list:** item `2` should be gone.
-
-**curl examples** (optional):
 ```bash
 curl -i http://localhost:3000/api/expenses
+```
+
+**Expect:** `{ "expenses": [ ... ] }` and header `X-Response-Time` present.
+
+2) **GET** single expense by id
+
+```bash
 curl -i http://localhost:3000/api/expenses/1
+```
+
+**Expect:** `{ "expense": { "id": 1, ... } }`
+
+3) **GET** non-existent expense by id
+
+```bash
+curl -i http://localhost:3000/api/expenses/9999
+```
+
+**Expect:** 404 and `{ "error": "Not found" }`
+
+4) **POST** create new expense
+
+
+```bash
 curl -i -X POST http://localhost:3000/api/expenses \
   -H 'Content-Type: application/json' \
   -d '{"title":"Books","amount":50}'
+```
+**Expect:** 201 and `{ "expense": { "id": <number>, "title": "Books", "amount": 50 } }`
+
+5) **POST (invalid)** create with invalid data
+
+```bash
+curl -i -X POST http://localhost:3000/api/expenses \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Hi","amount":-1}'
+```
+
+**Expect:** 400 with Zod validation details.
+
+6) **DELETE** remove expense by id
+
+```bash
 curl -i -X DELETE http://localhost:3000/api/expenses/2
 ```
+
+**Expect:** `{ "deleted": { "id": 2, ... } }`  
+Then verify with GET list that item `2` is gone.
 
 ---
 
@@ -216,13 +235,13 @@ Then replace `c.json({ expenses })` with `ok(c, { expenses })`, etc., and use `e
 - **400 on valid POST** → Ensure body type is **JSON** and you used `zValidator('json', createExpenseSchema)` and `c.req.valid('json')`.
 - **Route not matching `:id`** → Confirm the path uses `/:id{\\d+}` with backslashes escaped in TypeScript strings.
 - **Type errors after install** → Stop and restart `bun run dev`.
-- **Thunder Client not hitting server** → Confirm URL/port and that `bun run dev` is running without errors.
+- **curl not hitting server** → Confirm URL/port and that `bun run dev` is running without errors.
 
 ---
 
 ## 📤 What to Submit
 Create a `lab2-submission/` folder containing:
-- `collection_export.json` – Your Thunder Client collection (or Postman) covering the 6 requests above.
+- Output of your curl commands or screenshots showing the 6 requests above.
 - `screenshots/` –
   - `get_list.png`, `get_one.png`, `post_created.png`, `post_invalid.png`, `delete_one.png` (show status codes and bodies)
   - `headers_timing.png` – response headers including `X-Response-Time`.
@@ -237,7 +256,7 @@ Zip and upload as **Lab2.zip**. Include your repo link if public.
 - **Routes implemented (GET list, GET by id, POST, DELETE)** – 6 pts
 - **Zod validation via @hono/zod‑validator** – 3 pts
 - **Custom timing middleware (header visible)** – 2 pts
-- **Thunder/Postman evidence (collection + screenshots)** – 3 pts
+- **curl evidence (commands + screenshots)** – 3 pts
 - **Notes.md reflection** – 1 pt
 
 > Late submissions may receive reduced credit per course policy.
