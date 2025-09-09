@@ -79,7 +79,7 @@ Create **`.env`** (and commit a safe **`.env.example`** without credentials):
 
 ```
 # .env
-DATABASE_URL="postgresql://<YOUR-NEON-USER>:<PASSWORD>@<NEON_HOST>/<DB_NAME>?sslmode=require"
+DATABASE_URL="https://<YOUR-NEON-USER>:<PASSWORD>@<NEON_HOST>/<DB_NAME>?sslmode=require"
 ```
 
 > In Neon, copy the **HTTP** connection string (not the pooled driver). It often looks like:  
@@ -129,14 +129,13 @@ export { schema }
 ---
 
 ## 6) Create Tables (Run Migrations)
-With schema in place, first generate migration files, then create tables with **push**:
+With schema in place, create tables with **push** (simplest path):
 
 ```bash
-bun run db:generate
 bun run db:push
 ```
 
-> If you prefer migrations files: `bun run db:generate` to create SQL in `server/db/migrations/`, then run them using `drizzle-kit push` or a migrator script. For this lab, running `db:generate` before `db:push` is recommended.
+> If you prefer migrations files: `bun run db:generate` to create SQL in `server/db/migrations/`, then run them using `drizzle-kit push` or a migrator script. For this lab, `db:push` is acceptable.
 
 Confirm table creation using Drizzle Studio (optional):
 
@@ -248,7 +247,7 @@ Expected:
 
 ---
 
-## 9) Checkpoints
+## 9) Checkpoints (TA/Auto‑check)
 - [ ] `.env` contains a working `DATABASE_URL` (Neon) and the app boots without errors.
 - [ ] `drizzle.config.ts` present; `bun run db:push` created the `expenses` table.
 - [ ] All routes use DB reads/writes (no in‑memory array remains).
@@ -262,8 +261,6 @@ Expected:
 - **Auth errors**: rotate Neon password and update `.env`.
 - **Push blocked**: run `bun run db:generate` and then `bun run db:studio` to inspect; if needed, create a tiny migration runner, or use the Neon SQL console to execute the generated SQL.
 - **CORS/ports**: you’re testing with curl to the backend; no CORS issues expected yet.
-- **Node.js must be installed**; if missing, install Node.js first.
-- After installing Node.js, you may need to open a new terminal so that the `npm`/`node` PATH is recognized.
 
 ---
 

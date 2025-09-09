@@ -25,24 +25,6 @@ Each lab is a focused, step‑by‑step build that adds a new capability to the 
 
 ---
 
-## Assignments Index
-
-Assignments are milestone deliverables that consolidate lab skills into tangible artifacts.
-
-- **[Assignment 1 – API Foundations & Validation](./assignments/Assignment1_API_Foundations.md)**  
-  Implement robust CRUD with Hono + Zod, return meaningful errors, and include Thunder Client collections.
-
-- **[Assignment 2 – Data Layer & Query Strategy](./assignments/Assignment2_Data_Layer.md)**  
-  Migrate to Neon + Drizzle, write typed queries/migrations, and document schema decisions.
-
-- **[Assignment 3 – Frontend Integration & Routing](./assignments/Assignment3_Frontend_Routing.md)**  
-  Build pages with TanStack Router, integrate TanStack Query, and demonstrate coherent loading/error UX.
-
-- **[Assignment 4 – Auth, Files & Deployment](./assignments/Assignment4_Auth_Deployment.md)**  
-  Add Kinde auth, protect routes, implement file uploads, and deploy to Fly.io with a working URL.
-
----
-
 ## Course Overview
 
 This course emphasizes doing over memorizing. You will:

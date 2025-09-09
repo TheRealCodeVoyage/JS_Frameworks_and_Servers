@@ -204,7 +204,7 @@ Create a `lab1-submission/` folder containing:
 - `screenshot_server_running.png` – terminal showing the server log line.
 - `screenshot_thunder_health.png` – Thunder Client (or curl output) for `/health`.
 - `git_log.txt` – output of `git log --oneline`.
-- `notes.md` – 2–5 bullets on anything you learned or got stuck on.
+- `notes.md` – 2–5 bullets on anything you learned or got stuck on. Include your Github Repo Address.
 
 Zip and upload to the LMS as **Lab1.zip**. Include your GitHub repo link if you pushed it.
 
