@@ -40,11 +40,11 @@ Open http://localhost:5173 and confirm the Vite starter page loads.
 ---
 
 ## 2) Add & Configure TailwindCSS
-Install Tailwind + PostCSS tools:
+Install Tailwind + PostCSS tools: (From `/frontend`)
 
 ```bash
-bun add -d tailwindcss postcss autoprefixer
-bunx tailwindcss init -p
+bun add -d tailwindcss@3.4.13 postcss@8 autoprefixer@10
+npx tailwindcss init -p 
 ```
 
 Update **`tailwind.config.js`** `content` to include src and shadcn paths:
@@ -85,7 +85,7 @@ export default function App() {
 }
 ```
 
-Restart dev server if needed: `bun run dev`.
+‼️ Restart dev server if needed: `bun run dev`.
 
 ---
 
@@ -94,7 +94,7 @@ Initialize and generate components. Use **bunx** (or `npx`):
 
 ```bash
 # In /frontend
-bunx shadcn@latest init
+bunx --bun shadcn@latest init
 # Accept defaults or choose "apps" directory = src/components
 bunx shadcn@latest add button card input
 ```
@@ -127,6 +127,64 @@ export default {
   },
   plugins: [],
 }
+```
+
+Ensure **`tsconfig.json`** contains the correct configurations as below:
+
+```json
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}
+```
+
+Ensure **`tsconfig.json`** contains the correct configurations as below:
+
+```json
+{
+  "compilerOptions": {
+    // ...
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
+    // ...
+  }
+}
+```
+
+Update **`vite.config.ts`**
+Replace the following code in the **`vite.config.ts`** so your app can resolve paths without error:
+
+```ts
+import path from "path"
+import react from "@vitejs/plugin-react"
+import { defineConfig } from "vite"
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+})
 ```
 
 ---
