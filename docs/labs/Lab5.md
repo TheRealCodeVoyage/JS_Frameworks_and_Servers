@@ -197,7 +197,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 
 export function AppCard() {
   return (
-    <Card className="mt-6">
+    <Card className="mt-6 font-mono">
       <CardHeader>
         <CardTitle>Frontend Ready</CardTitle>
         <CardDescription>Vite + React + Tailwind + ShadCN is configured.</CardDescription>
