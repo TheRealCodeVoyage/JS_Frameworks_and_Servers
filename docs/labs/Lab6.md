@@ -245,6 +245,22 @@ const createExpense = useMutation({
 
 ---
 
+> **⚠️ Note on CORS errors**  
+> When running the frontend on `http://localhost:5173` and the backend on `http://localhost:3000`, the browser treats requests as **cross‑origin**.  
+> If the backend does not explicitly allow this, you may see a **“CORS error: Failed to fetch”** in the browser console.
+>
+> **Fix (add to your backend app.ts):**
+> ```ts
+> import { cors } from 'hono/cors'
+>
+> app.use('/api/*', cors({
+>   origin: 'http://localhost:5173',
+>   allowMethods: ['GET','POST','PATCH','DELETE','OPTIONS'],
+>   allowHeaders: ['Content-Type', 'Authorization'],
+> }))
+> ```
+> This middleware tells the browser it is safe to call the API from the Vite dev server origin.
+
 ## 🔍 Testing
 1) Start backend and verify with curl:
 ```bash
