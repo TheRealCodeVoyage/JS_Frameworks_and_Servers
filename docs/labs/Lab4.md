@@ -83,7 +83,7 @@ DATABASE_URL="https://<YOUR-NEON-USER>:<PASSWORD>@<NEON_HOST>/<DB_NAME>?sslmode=
 ```
 
 > In Neon, copy the **HTTP** connection string (not the pooled driver). It often looks like:  
-> `https://user:password@ep-xxxx-xxxx.us-east-2.aws.neon.tech/neondb?sslmode=require`
+> `postgres://user:password@ep-xxxx-xxxx.us-east-2.aws.neon.tech/neondb?sslmode=require`
 
 Create **`.env.example`**:
 
