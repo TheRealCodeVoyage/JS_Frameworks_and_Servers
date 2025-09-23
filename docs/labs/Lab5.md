@@ -235,6 +235,189 @@ export default function App() {
 ## 5) (Optional) Theme Toggle
 Add a simple dark mode toggle later by installing the `toggle` + `switch` components via the ShadCN CLI and applying `class="dark"` on `<html>`.
 
+### 5.1 Verify config + CSS are in place
+
+- tailwind.config.js must have:
+
+```js
+export default {
+  darkMode: ['class'],
+  content: ['./index.html','./src/**/*.{ts,tsx}'],
+  // …
+}
+```
+
+- src/index.css must include the CSS variables:
+
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root { /* light tokens… */ }
+  .dark { /* dark tokens… */ }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
+}
+```
+
+- Now, we need to define out Light and Dark modes by providing the light and dark tokens. below you can find example of these tokens, but feel free to change them as you desired your theme to be:
+
+```css
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 215 20.2% 65.1%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 217.2 32.6% 17.5%;
+  }
+```
+
+### 5.2 Use token classes instead of fixed grays
+
+- If your layout uses `bg-gray-50` `text-gray-900`, it won’t change in dark mode. Switch to the tokenized classes:
+- make these changes in src/App.tsx
+
+```tsx
+export default function App() {
+  return (
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-3xl p-6">
+        <h1 className="text-3xl font-bold">COMP3330 – Frontend Setup</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Vite • React • Tailwind • ShadCN</p>
+        {/* rest… */}
+      </div>
+    </main>
+  )
+}
+```
+
+- Use bg-card, text-muted-foreground, border-border, etc., in components.
+
+### 5.3 Add a real toggle (no framework dependency)
+
+- You can keep `<html class="dark">` hardcoded for testing, but for a working toggle add a tiny component that flips the dark class and persists the choice:
+
+- Create src/components/theme-toggle.tsx
+
+```tsx
+import { useEffect, useState } from 'react'
+import { Switch } from '@/components/ui/switch' // shadcn
+import { Sun, Moon } from 'lucide-react'
+
+type Theme = 'light' | 'dark'
+
+function setTheme(theme: Theme) {
+  const root = document.documentElement
+  if (theme === 'dark') root.classList.add('dark')
+  else root.classList.remove('dark')
+  localStorage.setItem('theme', theme)
+}
+
+export function ThemeToggle() {
+  const [checked, setChecked] = useState(false)
+
+  // on mount: respect saved pref (default to light)
+  useEffect(() => {
+    const saved = (localStorage.getItem('theme') as Theme) || 'light'
+    setChecked(saved === 'dark')
+    setTheme(saved)
+  }, [])
+
+  return (
+    <div className="flex items-center gap-2">
+      <Sun className="h-4 w-4" />
+      <Switch
+        checked={checked}
+        onCheckedChange={(v) => {
+          setChecked(v)
+          setTheme(v ? 'dark' : 'light')
+        }}
+        aria-label="Toggle dark mode"
+      />
+      <Moon className="h-4 w-4" />
+    </div>
+  )
+}
+```
+
+- Use the *theme toggle* component we just created in your header or nav (in App.tsx):
+
+```tsx
+import { ThemeToggle } from '@/components/theme-toggle'
+
+export default function App() {
+  return (
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-4xl p-6">
+        <header className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Expenses App</h1>
+          <nav className="flex items-center gap-4">
+            {/* links… */}
+            <ThemeToggle />
+          </nav>
+        </header>
+        {/* rest of page content */}
+      </div>
+    </main>
+  )
+}
+```
+
+### 5.4 (Optional) Improve initial load
+
+- Add this small inline script before your app mounts (in index.html) so the correct theme is applied with no flash:
+
+```html
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('theme');
+      if (saved === 'dark') document.documentElement.classList.add('dark');
+    } catch (e) {}
+  })();
+</script>
+```
+
+
 ---
 
 ## 🔍 Testing
