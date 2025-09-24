@@ -125,6 +125,30 @@ export default function App() {
 }
 ```
 
+> **Additional Notes from Implementation Experience**
+> - **CORS Configuration**: While implementing the ExpensesList component, a CORS error occurred in the browser.  
+>   The backend responded with status 200 but the browser blocked the request because the frontend runs on a different port.  
+>   **Fix applied in `server/app.ts`:**
+>   ```ts
+>   import { cors } from 'hono/cors'
+>
+>   app.use('/api/*', cors({
+>     origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+>     allowMethods: ['GET','POST','PATCH','DELETE','OPTIONS'],
+>     allowHeaders: ['Content-Type', 'Authorization'],
+>   }))
+>   ```
+>   This explicitly allows the Vite dev server origins to access the API.
+>
+> - **Theme-aware list items**: In `ExpensesList.tsx`, the list item container initially used `bg-white`.  
+>   To ensure it follows the dark/light theme, it was changed to:
+>   ```tsx
+>   className="flex items-center justify-between rounded border bg-background text-foreground p-3 shadow-sm"
+>   ```
+>   so it respects the Tailwind/ShadCN theme tokens.
+
+
+
 ---
 
 ## 4) Create: Add Expense with useMutation
