@@ -1,48 +1,57 @@
-# Lab 9 — Backend‑Managed Authentication with Kinde (Node.js + Server Routes)
+# Lab 9 — Backend‑Managed Authentication with Kinde (TypeScript SDK + Hono)
 
 **Course:** COMP3330 – Practical Full‑Stack Web Dev  
 **Week:** 9  
 **Estimated time:** 150–210 minutes  
-**Goal:** Move authentication **out of React** and into the **backend**. Your server (Node.js) will handle login, callback, token exchange, session cookies, logout, and JWT verification. The frontend will just show **Login/Logout** links and read `/api/auth/me`.
+**Goal:** Move authentication **out of React** and into the **backend**, but now using Kinde’s **TypeScript SDK**. Your Hono server will handle login, callback, token storage in HttpOnly cookies, logout, and user/profile lookup. The frontend only renders **Login/Logout** links and calls `/api/auth/me`.
 
-> Architecture change: **No Kinde React SDK**. We use standard OAuth 2.0 / OIDC on the server and protect API routes with JWT verification.
+> Architecture change: **No Kinde React SDK**. We use Kinde’s **TypeScript Backend SDK** to handle the OAuth 2.0 / OIDC flow on the server and protect API routes.
 
 ---
 
 ## ✅ Learning Outcomes
 By the end of this lab you can:
-- Create a **server‑side** Kinde application and configure **Allowed Callback** and **Logout** URLs.
-- Implement backend routes for **/login**, **/callback**, **/logout**, and **/me**.
-- Store tokens in **HttpOnly cookies** and protect API routes with a **JWT verify** middleware.
-- Drive the UI with a simple **AuthBar** that calls backend routes (no frontend SDK).
+- Install and configure Kinde’s **TypeScript SDK** on a Node/Hono backend.
+- Implement a minimal **SessionManager** using Hono cookies.
+- Create backend routes for **/login**, **/callback**, **/logout**, and **/me** using SDK helpers.
+- Protect API routes using the SDK’s **`isAuthenticated`** and **profile** helpers.
+- Keep the frontend simple (server‑driven auth UI, no frontend SDK).
 
 ---
 
 ## 🛠 Prerequisites
-- Lab 8 done (TanStack Router pages).  
-- Vite proxy to `/api` is configured so the frontend and backend look same‑origin in dev (cookies work).  
-- Node (>= 18), Bun, and your backend running at `http://localhost:3000`.
+- Lab 8 done (TanStack Router pages).
+- Vite proxy to `/api` configured so the frontend and backend look same‑origin in dev (cookies work).
+- Node (>= 18), Bun, backend at `http://localhost:3000`.
 
 ---
 
-## 1) Create a Kinde **Backend** App (Server‑side)
+## 0) Install Kinde **TypeScript SDK**
+From the backend project root:
 
+```bash
+bun add @kinde-oss/kinde-typescript-sdk
+```
+
+---
+
+## 1) Create a Kinde **Backend** App
 In your Kinde dashboard:
-1. Go to **Settings → Applications → Add application**.
-2. Choose a server‑side app (Regular Web / Backend) and note the values:
+1. **Settings → Applications → Add application** → choose *Back‑end web application* (server‑side).
+2. Note the values:
    - **Domain / Issuer**: `https://<your-subdomain>.kinde.com`
    - **Client ID** & **Client Secret**
-3. **Callback URLs** (a.k.a. Redirect URIs): add
+3. **Allowed callback URLs** (redirect URIs):
    - `http://localhost:3000/api/auth/callback`
-4. **Allowed logout redirect URLs**: add
-   - `http://localhost:5173/` *(or your preferred landing page)*
+4. **Allowed logout redirect URLs**:
+   - `http://localhost:5173/`
 
-> You can always find endpoints and capabilities in your tenant’s OIDC discovery doc: `https://<your-subdomain>.kinde.com/.well-known/openid-configuration`.
+> You can always verify endpoints via your tenant discovery: `https://<your-subdomain>.kinde.com/.well-known/openid-configuration`.
 
 ---
 
 ## 2) Backend Environment Config
-Create **`.env`** in your project root (server) and fill in your tenant details:
+Create **`.env`** in the server root:
 
 ```ini
 # Kinde
@@ -56,126 +65,81 @@ FRONTEND_URL=http://localhost:5173
 PORT=3000
 ```
 
-Restart your backend after adding env vars.
+Restart the backend after adding env vars.
 
 ---
 
-## 3) Backend Auth Routes (Hono, Node)
+## 3) Initialize Kinde client + SessionManager
 Create **`server/auth/kinde.ts`**:
 
 ```ts
 // server/auth/kinde.ts
 import { Hono } from 'hono'
 import { setCookie, deleteCookie } from 'hono/cookie'
-import { createRemoteJWKSet, jwtVerify, decodeJwt } from 'jose'
+import type { SessionManager } from '@kinde-oss/kinde-typescript-sdk'
+import { createKindeServerClient, GrantType } from '@kinde-oss/kinde-typescript-sdk'
 
-const ISSUER = process.env.KINDE_ISSUER_URL!
-const CLIENT_ID = process.env.KINDE_CLIENT_ID!
-const CLIENT_SECRET = process.env.KINDE_CLIENT_SECRET!
-const REDIRECT_URI = process.env.KINDE_REDIRECT_URI! // http://localhost:3000/api/auth/callback
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 
-const AUTH_URL = `${ISSUER}/oauth2/auth`
-const TOKEN_URL = `${ISSUER}/oauth2/token`
-const LOGOUT_URL = `${ISSUER}/logout`
+export const kindeClient = createKindeServerClient(GrantType.AUTHORIZATION_CODE, {
+  authDomain: process.env.KINDE_ISSUER_URL!,
+  clientId: process.env.KINDE_CLIENT_ID!,
+  clientSecret: process.env.KINDE_CLIENT_SECRET!,
+  redirectURL: process.env.KINDE_REDIRECT_URI!,
+  logoutRedirectURL: FRONTEND_URL,
+})
 
-const jwks = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks.json`))
+// Minimal cookie-backed SessionManager for Hono.
+// The SDK will call these to persist state/tokens per session.
+export function sessionFromHono(c: any): SessionManager {
+  return {
+    async getSessionItem(key: string) {
+      return c.req.cookie(key) ?? null
+    },
+    async setSessionItem(key: string, value: unknown) {
+      setCookie(c, key, String(value), { httpOnly: true, sameSite: 'lax', path: '/' })
+    },
+    async removeSessionItem(key: string) {
+      deleteCookie(c, key)
+    },
+    async destroySession() {
+      for (const k of ['kinde_access_token', 'kinde_id_token', 'kinde_refresh_token', 'kinde_session']) {
+        deleteCookie(c, k)
+      }
+    },
+  }
+}
 
 export const authRoute = new Hono()
-  // 1) Redirect to Kinde Hosted Login
+  // 1) Start login: get hosted login URL from SDK and redirect
   .get('/login', async (c) => {
-    const state = crypto.randomUUID()
-    setCookie(c, 'oauth_state', state, { httpOnly: true, sameSite: 'lax', path: '/' })
-
-    const url = new URL(AUTH_URL)
-    url.searchParams.set('response_type', 'code')
-    url.searchParams.set('client_id', CLIENT_ID)
-    url.searchParams.set('redirect_uri', REDIRECT_URI)
-    url.searchParams.set('scope', 'openid profile email offline')
-    url.searchParams.set('state', state)
+    const session = sessionFromHono(c)
+    const url = await kindeClient.login(session)
     return c.redirect(url.toString())
   })
 
-  // 2) Handle Kinde callback → exchange code for tokens
+  // 2) OAuth callback: hand the full URL to the SDK to validate and store tokens
   .get('/callback', async (c) => {
-    const currentUrl = new URL(c.req.url)
-    const code = currentUrl.searchParams.get('code')
-    const state = currentUrl.searchParams.get('state')
-    const expectedState = c.req.cookie('oauth_state')
-
-    if (!code) return c.text('Missing authorization code', 400)
-    if (!state || state !== expectedState) return c.text('Invalid state', 400)
-
-    const body = new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: REDIRECT_URI,
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-    })
-
-    const resp = await fetch(TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-    })
-
-    if (!resp.ok) {
-      const txt = await resp.text()
-      return c.text(`Token exchange failed: ${txt}`, 401)
-    }
-
-    const tokens = await resp.json() as {
-      access_token: string
-      id_token?: string
-      refresh_token?: string
-      expires_in: number
-      token_type: string
-      scope?: string
-    }
-
-    // Optional: verify access_token now (good practice in dev to catch misconfig)
-    try {
-      await jwtVerify(tokens.access_token, jwks, { issuer: ISSUER })
-    } catch (e) {
-      console.warn('Access token verify warning:', e)
-    }
-
-    // Store tokens in HttpOnly cookies (dev: SameSite=Lax)
-    setCookie(c, 'access_token', tokens.access_token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: tokens.expires_in,
-    })
-    if (tokens.id_token) setCookie(c, 'id_token', tokens.id_token, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: tokens.expires_in })
-    if (tokens.refresh_token) setCookie(c, 'refresh_token', tokens.refresh_token, { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 30 })
-
-    // Success → back to app
+    const session = sessionFromHono(c)
+    await kindeClient.handleRedirectToApp(session, new URL(c.req.url))
     return c.redirect(`${FRONTEND_URL}/expenses`)
   })
 
-  // 3) Logout: clear cookies, end Kinde session, redirect back
+  // 3) Logout via SDK: clears SDK-managed session and redirects
   .get('/logout', async (c) => {
-    deleteCookie(c, 'access_token')
-    deleteCookie(c, 'id_token')
-    deleteCookie(c, 'refresh_token')
-    deleteCookie(c, 'oauth_state')
-    const out = new URL(LOGOUT_URL)
-    out.searchParams.set('redirect', FRONTEND_URL)
-    return c.redirect(out.toString())
+    const session = sessionFromHono(c)
+    await kindeClient.logout(session)
+    return c.redirect(FRONTEND_URL)
   })
 
-  // 4) Me: read id_token (or decode access token) and return basic profile
+  // 4) Current user (profile)
   .get('/me', async (c) => {
-    const id = c.req.cookie('id_token')
-    if (!id) return c.json({ user: null })
+    const session = sessionFromHono(c)
     try {
-      const { payload } = await jwtVerify(id, jwks, { issuer: ISSUER, audience: CLIENT_ID })
-      return c.json({ user: payload })
+      const profile = await kindeClient.getUserProfile(session)
+      return c.json({ user: profile })
     } catch {
-      // As a fallback in dev, decode without verify (don’t trust for auth)
-      return c.json({ user: decodeJwt(id) })
+      return c.json({ user: null })
     }
   })
 ```
@@ -186,7 +150,7 @@ Mount the auth routes in **`server/app.ts`**:
 // server/app.ts
 import { Hono } from 'hono'
 import { authRoute } from './auth/kinde'
-// ... your other imports
+// ... other imports
 
 const app = new Hono()
 
@@ -196,38 +160,25 @@ app.route('/api/auth', authRoute)
 export default app
 ```
 
-> **Cookie note (dev)**: With the Vite proxy (`/api` → `http://localhost:3000`), cookies are sent as same‑origin. If you call the backend directly from `http://localhost:5173` without a proxy, you must use `credentials: 'include'` on fetch **and** set cookies with `SameSite=None; Secure`.
+> **Cookie note (dev)**: With the Vite proxy (`/api` → `http://localhost:3000`), cookies are sent as same‑origin. If you skip the proxy and call the backend cross‑origin, add `credentials: 'include'` to `fetch` **and** set cookies with `SameSite=None; Secure`.
 
 ---
 
-## 4) Protect API with JWT middleware
-Create **`server/auth/jwt.ts`** to verify the **access token** on protected routes:
+## 4) Protect API routes with the SDK
+Create **`server/auth/requireAuth.ts`**:
 
 ```ts
-// server/auth/jwt.ts
-import { createRemoteJWKSet, jwtVerify } from 'jose'
+// server/auth/requireAuth.ts
 import type { Context } from 'hono'
+import { kindeClient, sessionFromHono } from './kinde'
 
-const ISSUER = process.env.KINDE_ISSUER_URL!
-const jwks = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks.json`))
-
-export type AuthVars = { Variables: { user: Record<string, unknown> } }
-
-export async function requireAuth(c: Context<AuthVars>) {
-  // Prefer explicit Bearer token, otherwise fall back to cookie
-  const auth = c.req.header('authorization')
-  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : c.req.cookie('access_token')
-  if (!token) return c.json({ error: 'Unauthorized' }, 401)
-  try {
-    const { payload } = await jwtVerify(token, jwks, {
-      issuer: ISSUER,
-      clockTolerance: '60s',
-    })
-    c.set('user', payload)
-    return null
-  } catch (e: any) {
-    return c.json({ error: `Invalid token: ${e?.message || 'verify failed'}` }, 401)
-  }
+export async function requireAuth(c: Context) {
+  const session = sessionFromHono(c)
+  const authed = await kindeClient.isAuthenticated(session)
+  if (!authed) return c.json({ error: 'Unauthorized' }, 401)
+  const user = await kindeClient.getUserProfile(session)
+  c.set('user', user)
+  return null
 }
 ```
 
@@ -236,9 +187,9 @@ Use it in a secure route, e.g. **`server/routes/secure.ts`**:
 ```ts
 // server/routes/secure.ts
 import { Hono } from 'hono'
-import { requireAuth, type AuthVars } from '../auth/jwt'
+import { requireAuth } from '../auth/requireAuth'
 
-export const secureRoute = new Hono<AuthVars>()
+export const secureRoute = new Hono()
   .get('/profile', async (c) => {
     const err = await requireAuth(c)
     if (err) return err
@@ -255,14 +206,15 @@ import { secureRoute } from './routes/secure'
 app.route('/api/secure', secureRoute)
 ```
 
+> **Note:** With the SDK, you **don’t** manually verify tokens with `jose`. Audience checks are not required here—`isAuthenticated`/`getUserProfile` handle the session/token details (and they in turn validate as needed).
+
 ---
 
-## 5) Frontend Auth Bar (Server‑driven)
-Replace your React auth UI with **plain links** to backend routes and a small `/me` call.
-
-Create **`/frontend/src/components/AuthBar.tsx`** (replace previous version):
+## 5) Frontend Auth Bar (server‑driven)
+Use the same simple React component from earlier labs—just links and one call to `/api/auth/me`:
 
 ```tsx
+// /frontend/src/components/AuthBar.tsx
 import * as React from 'react'
 
 export function AuthBar() {
@@ -290,9 +242,7 @@ export function AuthBar() {
 }
 ```
 
-Ensure the header in **`/frontend/src/App.tsx`** renders `<AuthBar />` (as in earlier labs).
-
-> **Remove frontend SDK**: If you previously added `@kinde-oss/kinde-auth-react`, you can uninstall it and remove the `KindeProvider` from `main.tsx`.
+Ensure `<AuthBar />` renders in your app header.
 
 ---
 
@@ -301,36 +251,34 @@ Ensure the header in **`/frontend/src/App.tsx`** renders `<AuthBar />` (as in ea
 ### Browser flow
 1. Start backend and frontend (with Vite proxy enabled).
 2. Click **Login** → Kinde hosted page → complete sign in.
-3. Kinde redirects to `/api/auth/callback` → server sets **HttpOnly** cookies and redirects you back to the app.
-4. Navbar shows your email. Navigate to `/expenses` and try app features.
-5. Visit `GET /api/secure/profile` from the UI or with curl; it should return your user claims.
+3. Kinde redirects to `/api/auth/callback` → SDK stores session in HttpOnly cookies and redirects back to the app.
+4. Navbar shows your email from `/api/auth/me`. Navigate to `/expenses` and use the app.
+5. Call `GET /api/secure/profile` from the UI or curl; it should return your user claims.
 
 ### curl
 ```bash
 # Unauthenticated
 curl -i http://localhost:3000/api/secure/profile
 
-# After login, copy your access_token cookie value and try (or supply a Bearer token)
-curl -i http://localhost:3000/api/secure/profile \
-  -H "Authorization: Bearer <ACCESS_TOKEN>"
+# After login, with dev proxy you can test via the browser.
+# Or copy the access token from cookies if you need to call without the browser.
 ```
 
 ---
 
 ## ✅ Checkpoints
-- [ ] Kinde app created with **callback** and **logout** URLs set to your backend/FE.
+- [ ] SDK installed and configured with your Kinde tenant values.
 - [ ] `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout`, `/api/auth/me` working.
-- [ ] Tokens stored in **HttpOnly cookies**; protected routes require a valid token.
-- [ ] React shows **Login/Logout** via server routes (no frontend SDK).
+- [ ] Protected routes check `isAuthenticated` and return profile data.
+- [ ] Frontend uses server routes; cookies flow via Vite proxy.
 
 ---
 
 ## 🧯 Troubleshooting
-- **Invalid callback URL** — Make sure `KINDE_REDIRECT_URI` exactly matches a value in **Allowed callback URLs** (scheme, host, port, and path). Also ensure the **logout redirect** matches your Kinde app settings.
-- **Issuer errors** — If `jwtVerify` says *unexpected iss*, compare your token’s `iss` with env settings. Use the discovery doc and fix `KINDE_ISSUER_URL`.
-- **Cookies not sent** — Use the Vite proxy so `/api` is same‑origin. If calling cross‑origin, set `credentials: 'include'` and set cookies with `SameSite=None; Secure`.
-- **Using ID vs Access token** — Protect APIs with the **access token** (audience check skipped). Use the **id token** only to show profile data.
-- **Clock skew** — Add `clockTolerance: '60s'` in dev to avoid minor time drift issues.
+- **Invalid callback URL** — Ensure `KINDE_REDIRECT_URI` exactly matches an **Allowed callback URL** in the Kinde app (scheme/host/port/path).
+- **Issuer / domain mismatch** — `KINDE_ISSUER_URL` must match the token `iss`. Use your tenant discovery doc to confirm.
+- **Cookies not sent** — Use the Vite proxy to make `/api` same‑origin. If calling cross‑origin, add `credentials: 'include'` and set cookies with `SameSite=None; Secure`.
+- **Multiple sessions / stores** — The provided `SessionManager` is minimal. In production, back it with your framework’s session store (e.g., Redis) so it scales and works across instances.
 
 ---
 
@@ -339,16 +287,16 @@ Create `lab9-submission/` with:
 - `screenshots/` → `login.png`, `callback_done.png`, `profile_api.png`
 - `curl_profile.txt` → output of calling `/api/secure/profile`
 - `git_log.txt` → `git log --oneline` for Lab 9 commits
-- `notes.md` → 3–6 bullets: what changed moving auth to the server, cookie vs localStorage, token scopes
+- `notes.md` → 3–6 bullets: moving auth to the server with the SDK, cookie vs localStorage, what the SDK simplified
 
 Zip and upload **Lab9.zip**.
 
 ---
 
 ## 📝 Marking Guide (20 pts)
-- Server‑side auth flow implemented (login/callback/logout) – 6 pts  
-- JWT middleware protects API; `/me` returns profile – 6 pts  
-- Frontend uses server routes; cookies sent via proxy – 5 pts  
+- Server‑side auth flow implemented with the SDK (login/callback/logout) – 6 pts  
+- Protected API uses SDK auth checks; `/me` returns profile – 6 pts  
+- Frontend uses server routes; cookies via proxy – 5 pts  
 - Submission quality (screenshots + notes) – 3 pts
 
 ---
