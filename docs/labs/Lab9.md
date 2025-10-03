@@ -3,7 +3,7 @@
 **Course:** COMP3330 – Practical Full‑Stack Web Dev  
 **Week:** 9  
 **Estimated time:** 150–210 minutes  
-**Goal:** Move authentication **out of React** and into the **backend**, but now using Kinde’s **TypeScript SDK**. Your Hono server will handle login, callback, token storage in HttpOnly cookies, logout, and user/profile lookup. The frontend only renders **Login/Logout** links and calls `/api/auth/me`.
+**Goal:** Define authentication **out of React**(frontend) and into the **backend**, while now using Kinde’s **TypeScript SDK**. Your Hono server will handle login, callback, token storage in HttpOnly cookies, logout, and user/profile lookup. The frontend only renders **Login/Logout** links and calls `/api/auth/me`.
 
 > Architecture change: **No Kinde React SDK**. We use Kinde’s **TypeScript Backend SDK** to handle the OAuth 2.0 / OIDC flow on the server and protect API routes.
 
@@ -103,7 +103,7 @@ export function sessionFromHono(c: any): SessionManager {
       deleteCookie(c, key)
     },
     async destroySession() {
-      for (const k of ['kinde_access_token', 'kinde_id_token', 'kinde_refresh_token', 'kinde_session']) {
+      for (const k of ['access_token', 'id_token', 'refresh_token', 'session']) {
         deleteCookie(c, k)
       }
     },
