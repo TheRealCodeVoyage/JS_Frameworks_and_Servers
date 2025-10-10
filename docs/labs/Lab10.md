@@ -68,6 +68,23 @@ These packages let us sign upload/download URLs programmatically.
 ---
 
 ## 🔐 Step 2 – Configure Environment Variables
+
+>🧭 Creating an IAM User with Full S3 Access in AWS
+>	1.	Log in to AWS Management Console
+>Go to https://console.aws.amazon.com/iam/ and open the IAM (Identity and Access Management) service.
+>	2.	Create a New User
+>	•	Click Users → Add users.
+>	•	Enter a username (e.g., s3-admin-user).
+>	•	Select Access key – Programmatic access if you need CLI or SDK access, and/or AWS Management Console access for web login.
+>	•	Set a password if console access is enabled.
+>	3.	Attach Permissions
+>	•	Choose Attach policies directly.
+>	•	Search for and select AmazonS3FullAccess.
+>	•	This grants the user full permissions to manage all S3 buckets and objects.
+>	4.	Review and Create User
+>	•	Review the details and click Create user.
+>	•	Once created, note the Access key ID and Secret access key
+
 In `.env` (backend), add the S3 settings you collected earlier:
 ```
 S3_REGION=us-west-2                # match your bucket
