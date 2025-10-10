@@ -191,6 +191,9 @@ File: `server/routes/expenses.ts`
 
 2. **Translate incoming data** to the DB column:
    ```ts
+   type ExpenseRow = typeof expenses.$inferSelect
+   type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>
+
    const buildUpdatePayload = (input: UpdateExpenseInput) => {
      const updates: Partial<Pick<ExpenseRow, 'title' | 'amount' | 'fileUrl'>> = {}
      if (input.title !== undefined) updates.title = input.title
