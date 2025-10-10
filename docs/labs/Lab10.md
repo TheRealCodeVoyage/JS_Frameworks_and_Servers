@@ -47,7 +47,7 @@ Keep this flow in mind as you work through the steps.
    [
      {
        "AllowedOrigins": ["http://localhost:5173"],
-       "AllowedMethods": ["PUT", "GET", "HEAD", "OPTIONS"],
+       "AllowedMethods": ["PUT", "GET", "HEAD"],
        "AllowedHeaders": ["*"],
        "ExposeHeaders": ["ETag"],
        "MaxAgeSeconds": 3000
